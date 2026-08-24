@@ -3,7 +3,7 @@ package service
 import (
 	"context"
 	"errors"
-	"runtime"
+	"sync/atomic"
 	"time"
 
 	"orbit-telemetry-orchestrator/internal/aggregate"
@@ -105,7 +105,6 @@ func (a *App) EvaluateTelemetry(ctx context.Context, streamID, deviceID string) 
 		if err := a.ensureContext(ctx); err != nil {
 			return result, err
 		}
-		runtime.Gosched()
 		if incident, ok := a.correlateIncident(ctx, anomaly); ok {
 			if err := a.ensureContext(ctx); err != nil {
 				return result, err
@@ -125,8 +124,8 @@ func (a *App) Samples(ctx context.Context, streamID string, limit int) ([]domain
 }
 
 func (a *App) nextID(prefix string) string {
-	a.sequence++
-	return prefix + "-" + itoa(int(a.sequence))
+	id := atomic.AddUint64(&a.sequence, 1)
+	return prefix + "-" + itoa(int(id))
 }
 
 func itoa(value int) string {

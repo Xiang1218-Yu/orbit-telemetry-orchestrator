@@ -297,14 +297,71 @@ func (m *Memory) GetIncident(id string) (domain.Incident, error) {
 	return incident.Clone(), nil
 }
 
-func (m *Memory) UpdateIncident(incident domain.Incident) error {
+// UpdateIncident persists an incident. When expected > 0 it performs an
+// optimistic-concurrency check: callers that read a stale version get
+// ErrConflict instead of silently overwriting a concurrent writer's change.
+func (m *Memory) UpdateIncident(incident domain.Incident, expected int64) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	if _, ok := m.incidents[incident.ID]; !ok {
+	current, ok := m.incidents[incident.ID]
+	if !ok {
 		return ErrNotFound
+	}
+	if expected > 0 && current.Version != expected {
+		return ErrConflict
 	}
 	m.incidents[incident.ID] = incident.Clone()
 	return nil
+}
+
+// UpsertIncidentAnomaly atomically finds the open incident for a device/signal
+// and appends the anomaly, or — when none exists — creates one via the create
+// callback. Performing both steps under the store lock is what keeps a burst of
+// concurrent anomalies on a single incident: the first caller creates it and the
+// rest append to it instead of each opening a duplicate. The create callback runs
+// while the lock is held, so it must not reacquire store locks; any error it
+// returns aborts the operation without writing.
+func (m *Memory) UpsertIncidentAnomaly(deviceID, signal string, since time.Time, anomalyID string, severity int, now time.Time, create func() (domain.Incident, error)) (domain.Incident, bool, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	for _, incident := range m.incidents {
+		if incident.DeviceID != deviceID || incident.Status == domain.IncidentClosed {
+			continue
+		}
+		if incident.OpenedAt.Before(since) {
+			continue
+		}
+		matched := signal == ""
+		if !matched {
+			for _, existingID := range incident.AnomalyIDs {
+				if a, ok := m.anomalies[existingID]; ok && a.Signal == signal {
+					matched = true
+					break
+				}
+			}
+		}
+		if !matched {
+			continue
+		}
+		updated := incident.Clone()
+		if err := updated.AddAnomaly(anomalyID, severity, now); err != nil {
+			return domain.Incident{}, false, err
+		}
+		m.incidents[updated.ID] = updated.Clone()
+		return updated, true, nil
+	}
+	created, err := create()
+	if err != nil {
+		return domain.Incident{}, false, err
+	}
+	if existing, ok := m.incidents[created.ID]; ok {
+		// Collision on the generated ID is a programmer error; surface it rather
+		// than silently overwriting the existing record.
+		_ = existing
+		return domain.Incident{}, false, ErrExists
+	}
+	m.incidents[created.ID] = created.Clone()
+	return created, true, nil
 }
 
 func (m *Memory) ListIncidents(deviceID, status string, limit int) []domain.Incident {

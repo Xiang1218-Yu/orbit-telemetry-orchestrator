@@ -20,11 +20,9 @@ func (a *App) AddEvidence(ctx context.Context, actor, incidentID string, input E
 	if err := a.ensureContext(ctx); err != nil {
 		return domain.Evidence{}, err
 	}
-	incident, err := a.config.Repository.GetIncident(incidentID)
-	if err != nil {
+	if incident, err := a.config.Repository.GetIncident(incidentID); err != nil {
 		return domain.Evidence{}, err
-	}
-	if incident.Status == domain.IncidentClosed {
+	} else if incident.Status == domain.IncidentClosed {
 		return domain.Evidence{}, errors.New("closed incident cannot receive evidence")
 	}
 	evidence, err := domain.NewEvidence(input.ID, incidentID, input.Kind, input.Title, input.Body, input.Source, a.now())
@@ -34,8 +32,15 @@ func (a *App) AddEvidence(ctx context.Context, actor, incidentID string, input E
 	if err := a.config.Repository.PutEvidence(evidence); err != nil {
 		return domain.Evidence{}, err
 	}
-	_ = incident.AttachEvidence(evidence.ID, a.now())
-	if err := a.config.Repository.UpdateIncident(incident); err != nil {
+	if _, err := a.updateIncident(ctx, incidentID, func(incident domain.Incident) (domain.Incident, error) {
+		if incident.Status == domain.IncidentClosed {
+			return domain.Incident{}, errors.New("closed incident cannot receive evidence")
+		}
+		if err := incident.AttachEvidence(evidence.ID, a.now()); err != nil {
+			return domain.Incident{}, err
+		}
+		return incident, nil
+	}); err != nil {
 		return domain.Evidence{}, err
 	}
 	a.record(actor, "attach", "evidence", evidence.ID, "evidence attached to incident", nil)
@@ -67,8 +72,10 @@ func (a *App) RollupEvidence(ctx context.Context, incidentID string) (domain.Evi
 	if err := a.config.Repository.PutEvidence(evidence); err != nil {
 		return domain.Evidence{}, err
 	}
-	_ = incident.AttachEvidence(evidence.ID, a.now())
-	_ = a.config.Repository.UpdateIncident(incident)
+	_, _ = a.updateIncident(ctx, incidentID, func(current domain.Incident) (domain.Incident, error) {
+		_ = current.AttachEvidence(evidence.ID, a.now())
+		return current, nil
+	})
 	return evidence, nil
 }
 

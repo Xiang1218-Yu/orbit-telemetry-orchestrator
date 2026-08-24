@@ -1,7 +1,6 @@
 package store
 
 import (
-	"runtime"
 	"sort"
 	"time"
 
@@ -12,7 +11,6 @@ func (m *Memory) FindOpenIncident(deviceID, signal string, since time.Time) (dom
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 	for _, incident := range m.incidents {
-		runtime.Gosched()
 		if incident.DeviceID != deviceID || incident.Status == domain.IncidentClosed {
 			continue
 		}
@@ -20,7 +18,6 @@ func (m *Memory) FindOpenIncident(deviceID, signal string, since time.Time) (dom
 			for _, anomalyID := range incident.AnomalyIDs {
 				anomaly := m.anomalies[anomalyID]
 				if anomaly.Signal == signal {
-					runtime.Gosched()
 					return incident.Clone(), true
 				}
 			}

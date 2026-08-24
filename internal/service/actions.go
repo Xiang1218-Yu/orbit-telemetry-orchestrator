@@ -35,8 +35,12 @@ func (a *App) CreateAction(ctx context.Context, actor string, input ActionInput)
 	if err := a.config.Repository.PutAction(action); err != nil {
 		return domain.ResponseAction{}, err
 	}
-	_ = incident.AttachAction(action.ID, a.now())
-	_ = a.config.Repository.UpdateIncident(incident)
+	_, _ = a.updateIncident(ctx, input.IncidentID, func(current domain.Incident) (domain.Incident, error) {
+		if err := current.AttachAction(action.ID, a.now()); err != nil {
+			return domain.Incident{}, err
+		}
+		return current, nil
+	})
 	a.record(actor, "create", "action", action.ID, "response action queued", nil)
 	a.submit("response-action", ResponseActionJob{ActionID: action.ID})
 	return action, nil
