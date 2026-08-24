@@ -33,6 +33,9 @@ func (a *App) CreateAction(ctx context.Context, actor string, input ActionInput)
 	if err != nil {
 		return domain.ResponseAction{}, err
 	}
+	if input.ID == "" {
+		input.ID = a.nextID("action")
+	}
 	action, err := domain.NewAction(
 		input.ID, input.IncidentID, incident.DeviceID, input.Type, input.MaxAttempts,
 		input.Idempotency, input.Reason, a.now(),
@@ -40,9 +43,19 @@ func (a *App) CreateAction(ctx context.Context, actor string, input ActionInput)
 	if err != nil {
 		return domain.ResponseAction{}, err
 	}
-	if err := a.config.Repository.PutAction(action); err != nil {
+	// PutAction is the idempotency gate: a request that reuses an existing
+	// key resolves to the canonical, already-stored action so a retry never
+	// surfaces a freshly generated (and never persisted) action ID. When the
+	// request is a duplicate, return that canonical action and skip the
+	// queue/audit/incident side effects already produced by the first call.
+	stored, err := a.config.Repository.PutAction(action)
+	if err != nil {
+		if errors.Is(err, store.ErrExists) {
+			return stored, nil
+		}
 		return domain.ResponseAction{}, err
 	}
+	action = stored
 	_ = incident.AttachAction(action.ID, a.now())
 	_ = a.config.Repository.UpdateIncident(incident)
 	a.record(actor, "create", "action", action.ID, "response action queued", nil)

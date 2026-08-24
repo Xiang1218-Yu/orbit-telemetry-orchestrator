@@ -324,21 +324,29 @@ func (m *Memory) ListIncidents(deviceID, status string, limit int) []domain.Inci
 	return capList(result, limit)
 }
 
-func (m *Memory) PutAction(action domain.ResponseAction) error {
+// PutAction persists an action idempotently. The idempotency key, not the
+// action ID, is the request identity: a duplicate request that reuses the
+// same key must resolve to the same already-stored action regardless of the
+// action ID it carries. PutAction therefore returns the canonical action —
+// the existing record when the key is already known, or the freshly inserted
+// record otherwise — together with ErrExists when the caller's request was a
+// duplicate, so the service can suppress side effects without losing the
+// action the operator needs to see.
+func (m *Memory) PutAction(action domain.ResponseAction) (domain.ResponseAction, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	if existing, ok := m.idempotency[action.Idempotency]; ok {
-		if existing != action.ID {
-			return nil
-		}
-		return ErrExists
+	if existingID, ok := m.idempotency[action.Idempotency]; ok {
+		return m.actions[existingID].Clone(), ErrExists
 	}
 	if _, ok := m.actions[action.ID]; ok {
-		return ErrExists
+		// The action ID is taken by a different idempotency key; this is a
+		// real conflict, not a retry, and there is no canonical action to
+		// return.
+		return domain.ResponseAction{}, ErrExists
 	}
 	m.actions[action.ID] = action.Clone()
 	m.idempotency[action.Idempotency] = action.ID
-	return nil
+	return action.Clone(), nil
 }
 
 func (m *Memory) GetAction(id string) (domain.ResponseAction, error) {
