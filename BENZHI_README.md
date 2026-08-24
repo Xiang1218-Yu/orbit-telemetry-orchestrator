@@ -1,6 +1,8 @@
 # orbit-telemetry-orchestrator
 
-项目用途：orbit-telemetry-orchestrator 是一个可在容器中构建、运行和测试的 Go 服务或工具。项目源代码、依赖描述和评测专用 Docker 文件共同构成自包含任务；不依赖本机预编译二进制。
+基于 Go 实现的Orbit Telemetry Orchestrator Web 项目，一款后端服务，orbit-telemetry-orchestrator 是一个可在容器中构建、运行和测试的 Go 服务或工具。
+
+项目源代码、依赖描述和评测专用 Docker 文件共同构成自包含任务；不依赖本机预编译二进制。
 
 ## 标准构建、运行和测试命令
 
