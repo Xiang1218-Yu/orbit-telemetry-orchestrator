@@ -1,0 +1,74 @@
+{
+  "status": "verified",
+  "reservation_id": "4bfe0536b1cb2843648d",
+  "created_at": "2026-08-23T14:33:52+00:00",
+  "date": "2026-08-23",
+  "tier": "standard",
+  "path": "/Users/tog/Documents/Codex/2026-08-23/10个/orbit-telemetry-orchestrator",
+  "summary": {
+    "name": "orbit-telemetry-orchestrator",
+    "core_problem": "为现场设备和边缘网关提供遥测采集策略编排、异常检测、处置动作和证据追踪，避免设备数据分散、告警无法关联策略以及处置过程不可审计。",
+    "users": [
+      "设备运维工程师",
+      "边缘平台管理员",
+      "可靠性工程师"
+    ],
+    "domain_objects": [
+      "Device",
+      "TelemetryStream",
+      "CollectionPolicy",
+      "SignalWindow",
+      "Anomaly",
+      "Incident",
+      "ResponseAction",
+      "Evidence",
+      "MaintenanceWindow"
+    ],
+    "workflows": [
+      "注册设备并绑定遥测流",
+      "发布带版本和生效条件的采集策略",
+      "接收遥测批次并计算窗口指标",
+      "根据规则识别异常并聚合为事件",
+      "执行限流、隔离、通知和复核动作",
+      "关闭事件并生成可追溯证据包"
+    ],
+    "rules": [
+      "设备必须经过状态校验才能接收生产策略",
+      "策略发布需要版本递增且不能覆盖已锁定版本",
+      "异常按设备、信号和时间窗口去重聚合",
+      "维护窗口内的告警只能记录证据不能触发隔离动作",
+      "响应动作必须幂等并遵守每设备并发上限",
+      "事件关闭前必须具备最小证据集合"
+    ],
+    "modules": [
+      "domain entities and state transitions",
+      "in-memory repository with optimistic version checks",
+      "telemetry ingestion and window aggregation",
+      "anomaly rule evaluator",
+      "incident correlation and lifecycle",
+      "bounded response worker queue",
+      "policy compiler and rollout scheduler",
+      "audit trail and evidence packaging",
+      "rate limiting and request instrumentation",
+      "HTTP JSON API"
+    ],
+    "api_surface": [
+      "device registration and lifecycle endpoints",
+      "stream and policy endpoints",
+      "telemetry ingestion endpoint",
+      "anomaly and incident endpoints",
+      "response action and evidence endpoints",
+      "health, metrics and audit endpoints"
+    ],
+    "shape": "pure Go backend using standard library only",
+    "target_tier": "standard",
+    "planned_go_production_files": 28,
+    "planned_go_effective_lines": 3200
+  },
+  "fingerprint": "426bd246e2aeb17b212fa1b62ee42fdd6d72b592e948d2aea077b4ae58f9990e",
+  "preexisting": false,
+  "verified_at": "2026-08-23T14:54:25+00:00",
+  "go_production_files": 44,
+  "go_effective_lines": 3570,
+  "test_files": 0
+}
