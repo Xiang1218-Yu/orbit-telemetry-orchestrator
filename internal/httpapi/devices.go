@@ -22,10 +22,6 @@ func (s *Server) createDevice(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	value, err := s.config.App.CreateDevice(r.Context(), actor(r), input)
-	if r.Context().Err() != nil {
-		writeAppError(w, r.Context().Err())
-		return
-	}
 	if err != nil {
 		writeAppError(w, err)
 		return

@@ -70,6 +70,16 @@ func (m *Memory) UpdateDevice(device domain.Device, expected int64) error {
 	return nil
 }
 
+func (m *Memory) DeleteDevice(id string) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if _, ok := m.devices[id]; !ok {
+		return ErrNotFound
+	}
+	delete(m.devices, id)
+	return nil
+}
+
 func (m *Memory) ListDevices(status domain.DeviceStatus, limit int) []domain.Device {
 	m.mu.RLock()
 	defer m.mu.RUnlock()

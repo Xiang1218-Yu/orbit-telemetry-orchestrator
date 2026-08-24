@@ -1,7 +1,9 @@
 package httpapi
 
 import (
+	"context"
 	"encoding/json"
+	"errors"
 	"log/slog"
 	"net/http"
 	"runtime/debug"
@@ -61,13 +63,24 @@ func writeError(w http.ResponseWriter, status int, err error) {
 
 func writeAppError(w http.ResponseWriter, err error) {
 	status := http.StatusBadRequest
-	switch err.Error() {
-	case "record not found":
+	switch {
+	case errors.Is(err, context.Canceled):
+		// Client abandoned the request before the operation completed. The
+		// service layer guarantees no system state was mutated, so report the
+		// cancellation rather than framing it as a bad request.
+		status = StatusClientClosedRequest
+	case errors.Is(err, context.DeadlineExceeded):
+		status = http.StatusGatewayTimeout
+	case err.Error() == "record not found":
 		status = http.StatusNotFound
-	case "record already exists":
+	case err.Error() == "record already exists":
 		status = http.StatusConflict
-	case "record version conflict":
+	case err.Error() == "record version conflict":
 		status = http.StatusConflict
 	}
 	writeError(w, status, err)
 }
+
+// StatusClientClosedRequest indicates the client disconnected before the
+// request finished. It mirrors nginx's 499 status used for cancelled requests.
+const StatusClientClosedRequest = 499

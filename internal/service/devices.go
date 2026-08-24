@@ -22,7 +22,9 @@ func (a *App) CreateDevice(ctx context.Context, actor string, input DeviceInput)
 	if err := a.ensureContext(ctx); err != nil {
 		return domain.Device{}, err
 	}
-	if err := a.ensureContext(ctx); err != nil {
+	// A cancelled request must not mutate system state: skip device creation,
+	// audit records, events, and metrics so no half-finished record survives.
+	if err := ctx.Err(); err != nil {
 		return domain.Device{}, err
 	}
 	device, err := domain.NewDevice(input.ID, input.Name, input.Site, input.Model, input.Labels, a.now())
@@ -30,6 +32,12 @@ func (a *App) CreateDevice(ctx context.Context, actor string, input DeviceInput)
 		return domain.Device{}, err
 	}
 	if err := a.config.Repository.PutDevice(device); err != nil {
+		return domain.Device{}, err
+	}
+	// Re-check after the write so a cancellation that raced the persistence step
+	// does not leave a half-finished record blocking future registration.
+	if err := ctx.Err(); err != nil {
+		_ = a.config.Repository.DeleteDevice(device.ID)
 		return domain.Device{}, err
 	}
 	a.record(actor, "create", "device", device.ID, "device registered", nil)
