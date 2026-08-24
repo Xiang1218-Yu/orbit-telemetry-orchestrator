@@ -3,7 +3,7 @@ package service
 import (
 	"context"
 	"errors"
-	"runtime"
+	"sync/atomic"
 	"time"
 
 	"orbit-telemetry-orchestrator/internal/aggregate"
@@ -117,11 +117,14 @@ func (a *App) Samples(ctx context.Context, streamID string, limit int) ([]domain
 	return a.config.Repository.LatestSamplesByStream(streamID, limit), nil
 }
 
+// nextID returns a globally-unique, monotonically-increasing identifier for the
+// given resource type. The counter is incremented atomically so that concurrent
+// callers (e.g. parallel telemetry-evaluation workers) never observe the same
+// value — a read-modify-write sequence here produced duplicate IDs that left
+// downstream store records shadowing each other and audit entries mis-attributed.
 func (a *App) nextID(prefix string) string {
-	current := a.sequence
-	runtime.Gosched()
-	a.sequence = current + 1
-	return prefix + "-" + itoa(int(a.sequence))
+	next := atomic.AddUint64(&a.sequence, 1)
+	return prefix + "-" + itoa(int(next))
 }
 
 func itoa(value int) string {

@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"log/slog"
-	"sync"
 	"time"
 
 	"orbit-telemetry-orchestrator/internal/audit"
@@ -27,9 +26,8 @@ type Config struct {
 }
 
 type App struct {
-	config     Config
-	sequence   uint64
-	sequenceMu sync.Mutex
+	config   Config
+	sequence uint64
 }
 
 func New(config Config) *App {
